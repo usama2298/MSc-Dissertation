@@ -2,6 +2,8 @@ library(tidyverse)
 library(MASS)
 library(faraway)
 library(nnet)
+library(randomForest)
+library(ggthemes)
 
 # Converting Variables into factor
 Obesity$AgeGroup <- as.factor(Obesity$AgeGroup)
@@ -49,20 +51,80 @@ Prop_Year <- group_by(Obesity, Year, BMIgroup) %>% summarise(count=n()) %>%
 ggplot(Prop_Year, aes(x=Year, y=proportion, group=BMIgroup, linetype=BMIgroup,
                       color=BMIgroup)) + geom_line()
 
-
 # Multinomial Model
 multi_mod1 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg, data = Obesity)
-mod <- step(multi_mod3)
-multi_mod2 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit, data = Obesity)
+## Model Selection
+null_mod <- multinom(BMIgroup ~ 1, data=Obesity)
+setequal((null_mod$deviance - multi_mod1$deviance), (qchisq(p = 0.95, df = (multi_mod1$edf-null_mod$edf))))
+## This shows that the null model is insignificant
+mod <- step(multi_mod1)
+multi_mod2 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit, data = Obesity) # Best Model
 multi_mod3 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex, data = Obesity)
 multi_mod4 <- multinom(BMIgroup ~ AgeGroup + Sex, data = Obesity)
 multi_mod5 <- multinom(BMIgroup ~ AgeGroup, data = Obesity)
 
+# Random_forest Model
+rf_mod1 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg, data = Obesity) # Best Model
+rf_mod2 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit, data = Obesity)
+rf_mod3 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex, data = Obesity)
+plot(rf_mod1)
+legend('topright', colnames(rf_mod1$err.rate), col=1:5, fill=1:5)
+### The Plot shows that the prediction error rate of underweight is 100%, Overweight
+### has lowest prediction error rate. overall predictions error rate is near 55%
+
+# Get importance
+importance <- importance(rf_mod1) ; importance
+varImportance <- data.frame(Variables = row.names(importance), 
+                            Importance = round(importance[ ,'MeanDecreaseGini'],2))
+## Create a rank variable based on importance
+rankImportance <- varImportance %>%
+  mutate(Rank = paste0('#',dense_rank(desc(Importance))))
+## Use ggplot2 to visualize the relative importance of variables
+ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
+                           y = Importance, fill = Importance)) +
+  geom_bar(stat='identity') + 
+  geom_text(aes(x = Variables, y = 0.5, label = Rank),
+            hjust=0, vjust=0.55, size = 4, colour = 'white') + labs(x = 'Variables') +
+  coord_flip() + theme_excel_new()
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 # Predictions by Different Models
-Predictions <- data.frame(Orignal = Obesity$BMIgroup, Full_Model = predict(multi_mod1),
-                          Mod2 = predict(multi_mod2), Mod3 = predict(multi_mod3),
-                          Mod4 = predict(multi_mod4), Mod5 = predict(multi_mod5))
+Predictions <- data.frame(True_Values = Obesity$BMIgroup, Multi_Mod1 = predict(multi_mod1),
+                          Multi_Mod2 = predict(multi_mod2), Multi_Mod3 = predict(multi_mod3),
+                          Multi_Mod4 = predict(multi_mod4), Multi_Mod5 = predict(multi_mod5),
+                          Rf_Multi_Mod1 = predict(rf_mod1), Rf_Multi_Mod2 = predict(rf_mod2),
+                          Rf_Multi_Mod3 = predict(rf_mod3))
 
 # Correct Classification rate
-CP <- xtabs( ~ Predictions$Orignal + Predictions$Full_Model)
+CP <- xtabs( ~ Predictions$True_Values + Predictions$Multi_Mod2)
 (CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity)
+# So according to multinomial model, the Model 2 is best.
+# According to Random_Forest, the Model 1 is best, will all variables.
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
