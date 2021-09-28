@@ -62,16 +62,3 @@ Predictions2 <- data.frame(True_Values = Obesity2$BMIgroup, Multi_Mod1_1 = predi
 
 
 
-
-
-
-
-
-
-
-
-
-
-
-
-
