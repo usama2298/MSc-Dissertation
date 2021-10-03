@@ -1,11 +1,6 @@
-library(tidyverse)
-library(MASS)
-library(faraway)
-library(nnet)
-library(randomForest)
-library(ggthemes)
-library(sjPlot)
-
+library(tidyverse); library(MASS); library(faraway); library(nnet); library(GGally)
+library(randomForest); library(ggthemes); library(sjPlot); library(class)
+library(gmodels)
 
 # Reading Data
 Obesity <- read_csv("Obesity.csv")
@@ -28,21 +23,33 @@ Obesity$BMIgroup <- factor(x = Obesity$BMIgroup,
 levels(Obesity$BMIgroup)
 
 
-# Spiting data into "Train" and "Test" set
+# Spiting data into "Train" and "Test" set to avoid over fitting
 Split = sample(x = c(TRUE, FALSE), size = nrow(Obesity), replace = TRUE,
                prob = c(0.75, 0.25))
 Obesity_train = Obesity[Split, ]
 Obesity_test = Obesity[!Split, ]
-write_csv(Obesity_train, "D:/OneDrive - University of Glasgow/Study/Courses/Dissertation/R Analysis/MSc-Dissertation/Obesity_train.csv")
-write_csv(Obesity_test, "D:/OneDrive - University of Glasgow/Study/Courses/Dissertation/R Analysis/MSc-Dissertation/Obesity_test.csv")
-write_rds(Split, "D:/OneDrive - University of Glasgow/Study/Courses/Dissertation/R Analysis/MSc-Dissertation/Split.rds")
+write_rds(Obesity_train, "Obesity_train.RData")
+write_rds(Obesity_test, "Obesity_test.RData")
+write_rds(Split, "Split.RData")
 rm(Obesity, Obesity_train, Obesity_test, Split) # Removing main data as not needed anymore
 
 
 # Reading Train and Test data
-# Split <- read_rds("Split.rds") # Train and Test indices, read if necessary
-Obesity_train <- read_csv("Obesity_train.csv")
-Obesity_test <- read_csv("Obesity_test.csv")
+# Split <- read_rds("Split.RData") # Train and Test indices, read if necessary
+Obesity_train <- read_rds("Obesity_train.RData")
+Obesity_test <- read_rds("Obesity_test.RData")
+
+ 
+# Exploratory Analysis
+aggregate(Obesity$BMI, by=list(Obesity$BMIgroup), FUN=var)
+aggregate(Obesity_train$BMI, by=list(Obesity_train$BMIgroup), FUN=var)
+aggregate(Obesity_test$BMI, by=list(Obesity_test$BMIgroup), FUN=var)
+
+apply(Obesity[ ,-c(6,7)], 2, table)
+apply(Obesity_train[ ,-c(6,7)], 2, table)
+apply(Obesity_test[ ,-c(6,7)], 2, table)
+
+ggpairs(Obesity_train, columns=2, ggplot2::aes(colour=BMIgroup), legend = T)
 
 
 # Proportion graphs
@@ -115,7 +122,7 @@ Beta <- predict(multi_mod2, data.frame(AgeGroup = c("16-24", "25-34"),
                                        Employment = c("Doing something else",
                                                       "Doing something else"), 
                           Sex = c("Female", "Female"), Fruit = c("No", "No")),
-                          type="probs") ; Beta.Pred
+                          type="probs") ; Beta
 exp(log(Beta[1,1]*Beta[2,2]/(Beta[1,2]*Beta[2,1]))) ; rm(Beta)
 ## or we can just take the coefficient of AgeGroup "25-34" and take it's exp
 exp(0.7468219)
@@ -130,14 +137,48 @@ exp(confint(multi_mod2))
 plot_model(multi_mod2, show.values = TRUE, title = "Odds", show.p = F)
 
 
+# Predictions by Different Models
+Predictions <- tibble(True_Values = Obesity_test$BMIgroup,
+                      Multi_Mod1 = predict(multi_mod1, Obesity_test),
+                      Multi_Mod2 = predict(multi_mod2, Obesity_test),
+                      Multi_Mod3 = predict(multi_mod3, Obesity_test),
+                      Multi_Mod4 = predict(multi_mod4, Obesity_test),
+                      Multi_Mod5 = predict(multi_mod5, Obesity_test))
 
-# Linear Discriminant Analysis
-lda_mod1 <- lda(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
-                data = Obesity_train) # Best Model
-lda_mod2 <- lda(BMIgroup ~ AgeGroup + Employment + Sex + Fruit,
-                data = Obesity_train)
-lda_mod3 <- lda(BMIgroup ~ AgeGroup + Employment + Sex, data = Obesity_train)
+# Correct Classification rate
+CP <- table(Predictions$True_Values, Predictions$Multi_Mod1) ; CP
+# Proportion Table
+prop.table(CP, margin=1)
+(CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity_test) ; rm(CP)
+# Error rate
+1- mean(Predictions$True_Values == Predictions$Multi_Mod1)
 
+
+
+# # Linear Discriminant Analysis
+# lda_mod1 <- lda(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
+#                 data = Obesity_train) ; lda_mod1
+# lda_mod2 <- lda(BMIgroup ~ AgeGroup + Employment + Sex + Fruit,
+#                 data = Obesity_train) ; lda_mod2
+# lda_mod3 <- lda(BMIgroup ~ AgeGroup + Employment + Sex, data = Obesity_train)
+# lda_mod3
+# 
+# Lda.Pred <- predict(lda_mod2)
+# ldahist(data = Lda.Pred$x[,c(2)], g=Obesity_train$BMIgroup, cex=1.2)
+# 
+# # Predictions by Different Models
+# Predictions <- tibble(True_Values = Obesity_train$BMIgroup,
+#                       LDA_Mod1 = predict(lda_mod1)$class,
+#                       LDA_Mod2 = predict(lda_mod2)$class,
+#                       LDA_Mod3 = predict(lda_mod3)$class)
+# 
+# # Correct Classification rate
+# CP <- table(Predictions$True_Values, Predictions$LDA_Mod3) ; CP
+# # Proportion Table
+# prop.table(CP, margin=1)
+# (CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity_train) ; rm(CP)
+# # Error rate
+# 1- mean(Predictions$True_Values == Predictions$LDA_Mod3)
 ## Prior probabilities are the default observed proportion in the data.
 ## Here in Proportion of trace we can see that the first component is the most
 ## dominating but the variation is not satisfactory so we take LD2 also for
@@ -177,38 +218,60 @@ ggplot(rankImportance, aes(x = reorder(Variables, Importance),
 # Removing importance as there is no further use
 rm(importance, varImportance, rankImportance)
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-# Predictions by Different Models
 Predictions <- tibble(True_Values = Obesity_test$BMIgroup,
-                      Multi_Mod2 = predict(multi_mod2, Obesity_test),
-                      Multi_Mod3 = predict(multi_mod3, Obesity_test),
-                      Multi_Mod4 = predict(multi_mod4, Obesity_test),
-                      Multi_Mod5 = predict(multi_mod5, Obesity_test),
-                      LDA_Mod1 = predict(lda_mod1, Obesity_test)$class,
-                      LDA_Mod2 = predict(lda_mod2, Obesity_test)$class,
-                      LDA_Mod3 = predict(lda_mod3, Obesity_test)$class,
                       Rf_Multi_Mod1 = predict(rf_mod1, Obesity_test),
                       Rf_Multi_Mod2 = predict(rf_mod2, Obesity_test),
                       Rf_Multi_Mod3 = predict(rf_mod3, Obesity_test),)
 
 # Correct Classification rate
-CP <- xtabs( ~ Predictions$True_Values + Predictions$Rf_Multi_Mod3) ; CP
+CP <- table(Predictions$True_Values, Predictions$Rf_Multi_Mod1) ; CP
+# Proportion Table
+prop.table(CP, margin=1)
 (CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity_test) ; rm(CP)
+# Error rate
+1- mean(Predictions$True_Values == Predictions$Rf_Multi_Mod1)
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# # Predictions by Different Models
+# Predictions <- tibble(True_Values = Obesity_test$BMIgroup,
+#                       Multi_Mod1 = predict(multi_mod1, Obesity_test),
+#                       Multi_Mod2 = predict(multi_mod2, Obesity_test),
+#                       Multi_Mod3 = predict(multi_mod3, Obesity_test),
+#                       Multi_Mod4 = predict(multi_mod4, Obesity_test),
+#                       Multi_Mod5 = predict(multi_mod5, Obesity_test),
+#                       LDA_Mod1 = predict(lda_mod1, Obesity_test)$class,
+#                       LDA_Mod2 = predict(lda_mod2, Obesity_test)$class,
+#                       LDA_Mod3 = predict(lda_mod3, Obesity_test)$class,
+#                       Rf_Multi_Mod1 = predict(rf_mod1, Obesity_test),
+#                       Rf_Multi_Mod2 = predict(rf_mod2, Obesity_test),
+#                       Rf_Multi_Mod3 = predict(rf_mod3, Obesity_test),)
+# 
+# # Correct Classification rate
+# CP <- table(Predictions$True_Values, Predictions$LDA_Mod1) ; CP
+# # Proportion Table
+# prop.table(CP, margin=1)
+# (CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity_test) ; rm(CP)
+# # Error rate
+# 1- mean(Predictions$True_Values == Predictions$LDA_Mod3)
+
 
 # Removing bad models and unnecessary predictions to save memory
-rm(null_mod, multi_mod1, multi_mod3, multi_mod4, multi_mod5, lda_mod2, lda_mod3, 
-   rf_mod1, rf_mod2, Predictions)
-
+# rm(null_mod, multi_mod1, multi_mod3, multi_mod4, multi_mod5, lda_mod2, lda_mod3, 
+#    rf_mod1, rf_mod2, Predictions)
 
