@@ -1,90 +1,5 @@
-library(tidyverse); library(MASS); library(faraway); library(nnet); library(GGally)
-library(randomForest); library(ggthemes); library(sjPlot); library(class)
-library(gmodels)
-
-# Reading Data
-Obesity <- read_csv("Obesity.csv")
-
-
-# Converting Variables into factor
-Obesity$AgeGroup <- as.factor(Obesity$AgeGroup)
-Obesity$Sex <- as.factor(Obesity$Sex)
-Obesity$Employment <- as.factor(Obesity$Employment)
-Obesity$Veg <- as.factor(Obesity$Veg)
-Obesity$Fruit <- as.factor(Obesity$Fruit)
-Obesity$BMIgroup <- as.factor(Obesity$BMIgroup)
-Obesity$Obese <- as.factor(if_else(Obesity$BMIgroup == "Obese", "Yes", "No"))
-
-
-# Ordering BMIgroup variable levels
-Obesity$BMIgroup <- factor(x = Obesity$BMIgroup,
-                           levels = c("Underweight", "Normal", "Overweight",
-                                      "Obese"))
-levels(Obesity$BMIgroup)
-
-
-# Spiting data into "Train" and "Test" set to avoid over fitting
-Split = sample(x = c(TRUE, FALSE), size = nrow(Obesity), replace = TRUE,
-               prob = c(0.75, 0.25))
-Obesity_train = Obesity[Split, ]
-Obesity_test = Obesity[!Split, ]
-write_rds(Obesity_train, "Obesity_train.RData")
-write_rds(Obesity_test, "Obesity_test.RData")
-write_rds(Split, "Split.RData")
-rm(Obesity, Obesity_train, Obesity_test, Split) # Removing main data as not needed anymore
-
-
-# Reading Train and Test data
-# Split <- read_rds("Split.RData") # Train and Test indices, read if necessary
-Obesity_train <- read_rds("Obesity_train.RData")
-Obesity_test <- read_rds("Obesity_test.RData")
-
- 
-# Exploratory Analysis
-aggregate(Obesity$BMI, by=list(Obesity$BMIgroup), FUN=var)
-aggregate(Obesity_train$BMI, by=list(Obesity_train$BMIgroup), FUN=var)
-aggregate(Obesity_test$BMI, by=list(Obesity_test$BMIgroup), FUN=var)
-
-apply(Obesity[ ,-c(6,7)], 2, table)
-apply(Obesity_train[ ,-c(6,7)], 2, table)
-apply(Obesity_test[ ,-c(6,7)], 2, table)
-
-ggpairs(Obesity_train, columns=2, ggplot2::aes(colour=BMIgroup), legend = T)
-
-
-# Proportion graphs
-Prop_Emp <- group_by(Obesity, Employment, BMIgroup) %>% summarise(count=n()) %>% 
-  group_by(Employment) %>% mutate(etotal=sum(count), proportion=count/etotal)
-ggplot(Prop_Emp, aes(x=Employment, y=proportion, group=BMIgroup,
-                     linetype=BMIgroup, color=BMIgroup)) + geom_line()
-
-Prop_Sex <- group_by(Obesity, Sex, BMIgroup) %>% summarise(count=n()) %>% 
-  group_by(Sex) %>% mutate(etotal=sum(count), proportion=count/etotal)
-ggplot(Prop_Sex, aes(x=Sex, y=proportion, group=BMIgroup, linetype=BMIgroup,
-                     color=BMIgroup)) + geom_line()
-
-Prop_Veg <- group_by(Obesity, Veg, BMIgroup) %>% summarise(count=n()) %>% 
-  group_by(Veg) %>% mutate(etotal=sum(count), proportion=count/etotal)
-ggplot(Prop_Veg, aes(x=Veg, y=proportion, group=BMIgroup, linetype=BMIgroup,
-                     color=BMIgroup)) + geom_line()
-
-Prop_Fruit <- group_by(Obesity, Fruit, BMIgroup) %>% summarise(count=n()) %>% 
-  group_by(Fruit) %>% mutate(etotal=sum(count), proportion=count/etotal)
-ggplot(Prop_Fruit, aes(x=Fruit, y=proportion, group=BMIgroup, linetype=BMIgroup,
-                       color=BMIgroup)) + geom_line()
-
-Prop_AgeGroup <- group_by(Obesity, AgeGroup, BMIgroup) %>%
-  summarise(count=n()) %>% group_by(AgeGroup) %>%
-  mutate(etotal=sum(count), proportion=count/etotal)
-ggplot(Prop_AgeGroup, aes(x=AgeGroup, y=proportion, group=BMIgroup,
-                          linetype=BMIgroup, color=BMIgroup)) + geom_line()
-
-Prop_Year <- group_by(Obesity, Year, BMIgroup) %>% summarise(count=n()) %>% 
-  group_by(Year) %>% mutate(etotal=sum(count), proportion=count/etotal)
-ggplot(Prop_Year, aes(x=Year, y=proportion, group=BMIgroup, linetype=BMIgroup,
-                      color=BMIgroup)) + geom_line()
-#Removing prop dataframes as there is no further use
-rm(Prop_Sex, Prop_AgeGroup, Prop_Emp, Prop_Fruit, Prop_Veg, Prop_Year)
+library(MASS); library(nnet); library(randomForest); library(caret)
+library(forcats)
 
 
 # Multinomial Model
@@ -189,48 +104,44 @@ prop.table(CP, margin=1)
 
 # Random_forest Model
 rf_mod1 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
-                        data = Obesity_train)
+                        data = Obesity_train, ntree = 300)
+rf_bg_mod1 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
+                        data = Obesity_train, mtry = 5, ntree = 300)
 rf_mod2 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit,
                         data = Obesity_train)
+
+hist(treesize(rf_mod1))
+importance(rf_mod1) # Importance of variables
+varImpPlot(rf_mod1) # Imp plot
+varUsed(rf_mod1)
+
+# After removing Fruit and Veg as they have very low importance
 rf_mod3 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex,
-                        data = Obesity_train) # Best Model
-plot(rf_mod1)
+                        data = Obesity_train, ntree = 300) # Best Model
+plot(rf_mod3)
 legend('topright', colnames(rf_mod1$err.rate), col=1:5, fill=1:5)
 ## The Plot shows that the prediction error rate of underweight is 100%,
 ## Overweight has lowest prediction error rate. overall predictions error rate
 ## is near 55%
 
 
-# Get importance
-importance <- importance(rf_mod1) ; importance
-varImportance <- data.frame(Variables = row.names(importance), 
-                        Importance = round(importance[ ,'MeanDecreaseGini'],2))
-## Create a rank variable based on importance
-rankImportance <- varImportance %>%
-  mutate(Rank = paste0('#',dense_rank(desc(Importance))))
-## Use ggplot2 to visualize the relative importance of variables
-ggplot(rankImportance, aes(x = reorder(Variables, Importance), 
-                           y = Importance, fill = Importance)) +
-  geom_bar(stat='identity') + 
-  geom_text(aes(x = Variables, y = 0.5, label = Rank),
-            hjust=0, vjust=0.55, size = 4, colour = 'white') +
-  labs(x = 'Variables') + coord_flip() + theme_excel_new()
-# Removing importance as there is no further use
-rm(importance, varImportance, rankImportance)
-
 Predictions <- tibble(True_Values = Obesity_test$BMIgroup,
                       Rf_Multi_Mod1 = predict(rf_mod1, Obesity_test),
-                      Rf_Multi_Mod2 = predict(rf_mod2, Obesity_test),
+                      # Rf_Multi_Bg_Mod1 = predict(rf_bg_mod1, Obesity_test),
+                      # Rf_Multi_Mod2 = predict(rf_mod2, Obesity_test),
                       Rf_Multi_Mod3 = predict(rf_mod3, Obesity_test),)
 
 # Correct Classification rate
-CP <- table(Predictions$True_Values, Predictions$Rf_Multi_Mod1) ; CP
+CP <- table(Predictions$True_Values, Predictions$Rf_Multi_Mod3) ; CP
 # Proportion Table
 prop.table(CP, margin=1)
 (CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity_test) ; rm(CP)
 # Error rate
 1- mean(Predictions$True_Values == Predictions$Rf_Multi_Mod1)
 
+# Confusion Matrix
+
+confusionMatrix(Predictions$True_Values, Predictions$Rf_Multi_Mod3)
 
 
 
@@ -241,37 +152,9 @@ prop.table(CP, margin=1)
 
 
 
-
-
-
-
-
-
-
-# # Predictions by Different Models
-# Predictions <- tibble(True_Values = Obesity_test$BMIgroup,
-#                       Multi_Mod1 = predict(multi_mod1, Obesity_test),
-#                       Multi_Mod2 = predict(multi_mod2, Obesity_test),
-#                       Multi_Mod3 = predict(multi_mod3, Obesity_test),
-#                       Multi_Mod4 = predict(multi_mod4, Obesity_test),
-#                       Multi_Mod5 = predict(multi_mod5, Obesity_test),
-#                       LDA_Mod1 = predict(lda_mod1, Obesity_test)$class,
-#                       LDA_Mod2 = predict(lda_mod2, Obesity_test)$class,
-#                       LDA_Mod3 = predict(lda_mod3, Obesity_test)$class,
-#                       Rf_Multi_Mod1 = predict(rf_mod1, Obesity_test),
-#                       Rf_Multi_Mod2 = predict(rf_mod2, Obesity_test),
-#                       Rf_Multi_Mod3 = predict(rf_mod3, Obesity_test),)
-# 
-# # Correct Classification rate
-# CP <- table(Predictions$True_Values, Predictions$LDA_Mod1) ; CP
-# # Proportion Table
-# prop.table(CP, margin=1)
-# (CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity_test) ; rm(CP)
-# # Error rate
-# 1- mean(Predictions$True_Values == Predictions$LDA_Mod3)
 
 
 # Removing bad models and unnecessary predictions to save memory
-# rm(null_mod, multi_mod1, multi_mod3, multi_mod4, multi_mod5, lda_mod2, lda_mod3, 
-#    rf_mod1, rf_mod2, Predictions)
+# rm(null_mod, multi_mod1, multi_mod3, multi_mod4, multi_mod5, lda_mod2, lda_mod3,
+#    rf_mod1, rf_mod2, rf_mod3, Predictions)
 
