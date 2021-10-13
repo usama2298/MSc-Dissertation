@@ -85,6 +85,87 @@ rm(train.data, test.data)
 
 
 
+# # Linear Discriminant Analysis
+# lda_mod1 <- lda(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
+#                 data = Obesity_train) ; lda_mod1
+# lda_mod2 <- lda(BMIgroup ~ AgeGroup + Employment + Sex + Fruit,
+#                 data = Obesity_train) ; lda_mod2
+# lda_mod3 <- lda(BMIgroup ~ AgeGroup + Employment + Sex, data = Obesity_train)
+# lda_mod3
+# 
+# Lda.Pred <- predict(lda_mod2)
+# ldahist(data = Lda.Pred$x[,c(2)], g=Obesity_train$BMIgroup, cex=1.2)
+# 
+# # Predictions by Different Models
+# Predictions <- tibble(True_Values = Obesity_train$BMIgroup,
+#                       LDA_Mod1 = predict(lda_mod1)$class,
+#                       LDA_Mod2 = predict(lda_mod2)$class,
+#                       LDA_Mod3 = predict(lda_mod3)$class)
+# 
+# # Correct Classification rate
+# CP <- table(Predictions$True_Values, Predictions$LDA_Mod3) ; CP
+# # Proportion Table
+# prop.table(CP, margin=1)
+# (CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity_train) ; rm(CP)
+# # Error rate
+# 1- mean(Predictions$True_Values == Predictions$LDA_Mod3)
+## Prior probabilities are the default observed proportion in the data.
+## Here in Proportion of trace we can see that the first component is the most
+## dominating but the variation is not satisfactory so we take LD2 also for
+## classification. Age variable is dominated in LD1 and Employment variable is
+## dominated in LD2 and as seen before the classification will be done on the
+## basis of mainly first two LD1 & LD2.
+
+
+  
+
+
+
+
+
+
+# Building Model
+
+Obesity_train_boot <- bootstraps(Obesity_train)
+
+# Recipe (we need to create dummy variables and smote sampling)
+## smote sampling works with nearest neighbor algorithm
+Obesity_rec <- recipe(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg, 
+                      data = Obesity_train) %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>%
+  step_smote(BMIgroup)
+Obesity_prep <- prep(Obesity_rec)
+
+# Model specification: for a random forest where we will tune mtry and min_n
+## mtry: the number of predictors to sample at each split
+## min_n: the number of observations needed to keep splitting nodes
+Obesity_spec <- rand_forest(trees = 1000) %>%
+  set_mode("classification") %>%
+  set_engine("ranger")
+
+# Putting pre processing code in workflow
+Obesity_wf <- workflow() %>%
+  add_recipe(Obesity_rec) %>%
+  add_model(Obesity_spec)
+
+Obesity_res <- fit_resamples(
+  Obesity_wf,
+  resamples = Obesity_train_boot,
+  control = control_resamples(save_pred = TRUE)
+)
+
+
+Obesity_res %>% collect_metrics()
+
+
+
+
+
+
+
+
+
+
 
 
 

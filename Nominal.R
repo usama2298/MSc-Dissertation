@@ -1,5 +1,10 @@
 library(MASS); library(nnet); library(randomForest); library(caret)
-library(forcats)
+library(forcats); library(vip)
+library(recipes); library(tidymodels)
+library(parsnip); library(tune); library(workflows)
+library(rsample)
+library(doParallel)
+library(ranger) ; library(themis)
 
 
 # Multinomial Model
@@ -16,8 +21,6 @@ multi_mod2 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit,
 multi_mod3 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex, data = Obesity_train)
 multi_mod4 <- multinom(BMIgroup ~ AgeGroup + Sex, data = Obesity_train)
 multi_mod5 <- multinom(BMIgroup ~ AgeGroup, data = Obesity_train)
-
-
 
 
 # Checking the prediction values based on solely on intercept, which will give
@@ -61,45 +64,14 @@ Predictions <- tibble(True_Values = Obesity_test$BMIgroup,
                       Multi_Mod5 = predict(multi_mod5, Obesity_test))
 
 # Correct Classification rate
-CP <- table(Predictions$True_Values, Predictions$Multi_Mod1) ; CP
+CP <- table(Predictions$True_Values, Predictions$Multi_Mod2) ; CP
 # Proportion Table
 prop.table(CP, margin=1)
 (CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity_test) ; rm(CP)
 # Error rate
 1- mean(Predictions$True_Values == Predictions$Multi_Mod1)
-
-
-
-# # Linear Discriminant Analysis
-# lda_mod1 <- lda(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
-#                 data = Obesity_train) ; lda_mod1
-# lda_mod2 <- lda(BMIgroup ~ AgeGroup + Employment + Sex + Fruit,
-#                 data = Obesity_train) ; lda_mod2
-# lda_mod3 <- lda(BMIgroup ~ AgeGroup + Employment + Sex, data = Obesity_train)
-# lda_mod3
-# 
-# Lda.Pred <- predict(lda_mod2)
-# ldahist(data = Lda.Pred$x[,c(2)], g=Obesity_train$BMIgroup, cex=1.2)
-# 
-# # Predictions by Different Models
-# Predictions <- tibble(True_Values = Obesity_train$BMIgroup,
-#                       LDA_Mod1 = predict(lda_mod1)$class,
-#                       LDA_Mod2 = predict(lda_mod2)$class,
-#                       LDA_Mod3 = predict(lda_mod3)$class)
-# 
-# # Correct Classification rate
-# CP <- table(Predictions$True_Values, Predictions$LDA_Mod3) ; CP
-# # Proportion Table
-# prop.table(CP, margin=1)
-# (CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity_train) ; rm(CP)
-# # Error rate
-# 1- mean(Predictions$True_Values == Predictions$LDA_Mod3)
-## Prior probabilities are the default observed proportion in the data.
-## Here in Proportion of trace we can see that the first component is the most
-## dominating but the variation is not satisfactory so we take LD2 also for
-## classification. Age variable is dominated in LD1 and Employment variable is
-## dominated in LD2 and as seen before the classification will be done on the
-## basis of mainly first two LD1 & LD2.
+# Confusion Matrix
+confusionMatrix(Predictions$True_Values, Predictions$Multi_Mod2)
 
 
 # Random_forest Model
@@ -107,12 +79,13 @@ rf_mod1 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
                         data = Obesity_train, ntree = 300)
 rf_bg_mod1 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
                         data = Obesity_train, mtry = 5, ntree = 300)
+## Bagging is not suitable for this data as the AgeGroup is a most influential variable
 rf_mod2 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit,
                         data = Obesity_train)
 
-hist(treesize(rf_mod1))
+attributes(rf_mod1)
+rf_mod1 %>% vip(geom = "col") # Imp plot
 importance(rf_mod1) # Importance of variables
-varImpPlot(rf_mod1) # Imp plot
 varUsed(rf_mod1)
 
 # After removing Fruit and Veg as they have very low importance
@@ -124,10 +97,20 @@ legend('topright', colnames(rf_mod1$err.rate), col=1:5, fill=1:5)
 ## Overweight has lowest prediction error rate. overall predictions error rate
 ## is near 55%
 
+# Random forest with dummy variables
+Obesity_train_dum <- recipe(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg, 
+                      data = Obesity_train) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>% prep() %>% juice()
+Obesity_test_dum <- recipe(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg, 
+                      data = Obesity_test) %>%
+  step_dummy(all_nominal(), -all_outcomes()) %>% prep() %>% juice()
+
+rf_mod1_dum <- randomForest(BMIgroup ~ . , data = Obesity_train_dum, ntree = 300)
+rf_mod1_dum %>% vip(geom = "col")
 
 Predictions <- tibble(True_Values = Obesity_test$BMIgroup,
                       Rf_Multi_Mod1 = predict(rf_mod1, Obesity_test),
-                      # Rf_Multi_Bg_Mod1 = predict(rf_bg_mod1, Obesity_test),
+                      Rf_Multi_Mod1_dum = predict(rf_mod1_dum, Obesity_test_dum),
                       # Rf_Multi_Mod2 = predict(rf_mod2, Obesity_test),
                       Rf_Multi_Mod3 = predict(rf_mod3, Obesity_test),)
 
@@ -154,7 +137,37 @@ confusionMatrix(Predictions$True_Values, Predictions$Rf_Multi_Mod3)
 
 
 
-# Removing bad models and unnecessary predictions to save memory
-# rm(null_mod, multi_mod1, multi_mod3, multi_mod4, multi_mod5, lda_mod2, lda_mod3,
-#    rf_mod1, rf_mod2, rf_mod3, Predictions)
+a
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+# rm(multi_mod1, multi_mod2, multi_mod3, multi_mod4, multi_mod5, null_mod, rf_mod1, rf_mod3)
 
