@@ -1,6 +1,7 @@
+# Libraries ----
 library(tidyverse); library(faraway); library(GGally); library(skimr)
 library(ggthemes); library(sjPlot); library(class); library(gmodels)
-library(ggridges); library(gridExtra)
+library(ggridges); library(gridExtra); library(broom) ; library(AICcmodavg)
 
 # Reading Data ----
 Obesity <- read_csv("Obesity.csv")
@@ -15,6 +16,7 @@ Obesity$Fruit <- as.factor(Obesity$Fruit)
 Obesity$BMIgroup <- as.factor(Obesity$BMIgroup)
 Obesity$Obese <- as.factor(if_else(Obesity$BMIgroup == "Obese", "Yes", "No"))
 
+table(Obesity$BMIgroup)
 
 # Ordering BMIgroup variable levels
 Obesity$BMIgroup <- factor(x = Obesity$BMIgroup,
@@ -49,8 +51,17 @@ Obesity_test <- read_rds("Obesity_test.RData")
 
 # Summary ----
 my_skim <- skim_with(base=sfl(n=length,n_missing=n_missing),factor=sfl(ordered=NULL),
-                     numeric=sfl(p0=NULL,p100=NULL,hist = NULL))
+                     numeric=sfl(hist = NULL))
 my_skim(Obesity); rm(my_skim)
+
+ggplot(Obesity, aes(x = BMI)) +
+  geom_histogram(binwidth = 1.5, mapping = aes(y=..density..), colour="black", fill="white") +
+  geom_density(alpha=.15, fill="#FF6666") + 
+  geom_vline(aes(xintercept=27.9), color = "blue", linetype="dashed") +
+  annotate(geom="text", x=28.35, y=0.04, label="mean = 27.9",
+           color="black", angle='90', size = 4) + 
+  labs(title = "BMI")
+
 
 ## Cross Tables ----
 CrossTable(Obesity$BMIgroup, Obesity$AgeGroup,digits=2,
@@ -85,48 +96,43 @@ ggplot(Obesity, aes(x = BMI, y = as.factor(Year), fill = BMIgroup)) +
 
 # Proportion graphs ----
 Prop_Emp <- group_by(Obesity, Employment, BMIgroup) %>% summarise(count=n()) %>% 
-  group_by(Employment) %>% mutate(etotal=sum(count), proportion=count/etotal)
+  group_by(Employment) %>% mutate(total=sum(count), proportion=count/total)
 ggplot(Prop_Emp, aes(x=Employment, y=proportion, group=BMIgroup,
-                     linetype=BMIgroup, color=BMIgroup)) + geom_line()
+                     linetype=BMIgroup, color=BMIgroup)) + geom_line() +
+  theme_bw() + theme(axis.text.x = element_blank())
 
 Prop_Sex <- group_by(Obesity, Sex, BMIgroup) %>% summarise(count=n()) %>% 
-  group_by(Sex) %>% mutate(etotal=sum(count), proportion=count/etotal)
+  group_by(Sex) %>% mutate(total=sum(count), proportion=count/total)
 ggplot(Prop_Sex, aes(x=Sex, y=proportion, group=BMIgroup, linetype=BMIgroup,
-                     color=BMIgroup)) + geom_line()
+                     color=BMIgroup)) + geom_line() + theme_bw()
 
 Prop_Veg <- group_by(Obesity, Veg, BMIgroup) %>% summarise(count=n()) %>% 
-  group_by(Veg) %>% mutate(etotal=sum(count), proportion=count/etotal)
+  group_by(Veg) %>% mutate(total=sum(count), proportion=count/total)
 ggplot(Prop_Veg, aes(x=Veg, y=proportion, group=BMIgroup, linetype=BMIgroup,
                      color=BMIgroup)) + geom_line()
 
 Prop_Fruit <- group_by(Obesity, Fruit, BMIgroup) %>% summarise(count=n()) %>% 
-  group_by(Fruit) %>% mutate(etotal=sum(count), proportion=count/etotal)
+  group_by(Fruit) %>% mutate(total=sum(count), proportion=count/total)
 ggplot(Prop_Fruit, aes(x=Fruit, y=proportion, group=BMIgroup, linetype=BMIgroup,
                        color=BMIgroup)) + geom_line()
 
 Prop_AgeGroup <- group_by(Obesity, AgeGroup, BMIgroup) %>%
   summarise(count=n()) %>% group_by(AgeGroup) %>%
-  mutate(etotal=sum(count), proportion=count/etotal)
+  mutate(total=sum(count), proportion=count/total)
 ggplot(Prop_AgeGroup, aes(x=AgeGroup, y=proportion, group=BMIgroup,
                           linetype=BMIgroup, color=BMIgroup)) + geom_line()
+group_by(Obesity, AgeGroup) %>% summarise(Count=n()) %>%
+  ggplot(aes(x = AgeGroup, y = Count)) + geom_col(aes(fill = AgeGroup))
 
-
-## Prop plots for Year and Obese ----
-Prop_Year <- group_by(Obesity, Year, Obese) %>% summarise(count=n()) %>% 
-  group_by(Year) %>% mutate(etotal=sum(count), proportion=count/etotal)
-
-p1 <- Prop_Year %>% subset(Obese == "Yes") %>%
-  ggplot(mapping = aes(x=Year, y=proportion, group=Obese, color=Obese)) +
-  geom_line(size = 0.5)
-p2 <- Prop_Year %>% subset(Obese == "No") %>%
-  ggplot(mapping = aes(x=Year, y=proportion, group=Obese, color=Obese)) +
-  geom_line(size = 0.5)
-
-grid.arrange(p1, p2)
 
 ## Prop plots for Year and BMIgroup ----
 Prop_Year <- group_by(Obesity, Year, BMIgroup) %>% summarise(count=n()) %>%
-  group_by(Year) %>% mutate(etotal=sum(count), proportion=count/etotal)
+  group_by(Year) %>% mutate(total=sum(count), proportion=count/total)
+
+### Prop plot for Year and Obese ----
+Prop_Year %>% subset(BMIgroup == "Obese") %>%
+  ggplot(mapping = aes(x=Year, y=proportion, group=BMIgroup, color=BMIgroup)) +
+  geom_line(size = 0.5) + labs(title = "Proportion Plot: Obese vs Year")
 
 p1 <- Prop_Year %>% subset(BMIgroup == "Underweight") %>%
 ggplot(mapping = aes(x=Year, y=proportion, group=BMIgroup, color=BMIgroup)) +
@@ -144,9 +150,23 @@ ggplot(mapping = aes(x=Year, y=proportion, group=BMIgroup, color=BMIgroup)) +
 grid.arrange(p1, p2, p3, p4)
 
 
+# Removing prop data frames as there is no further use
+rm(Prop_Sex, Prop_AgeGroup, Prop_Emp, Prop_Fruit, Prop_Veg, p1, p2, p3, p4)
 
-#Removing prop data frames as there is no further use
-rm(Prop_Sex, Prop_AgeGroup, Prop_Emp, Prop_Fruit, Prop_Veg, Prop_Year)
+
+# Proportion Comparison ----
+
+Prop_Year <- Prop_Year %>% subset(BMIgroup == "Obese")
+
+prop.test(Prop_Year$count, Prop_Year$total)
+
+chisq.test(Obesity$Obese, Obesity$Year)
+
+
+
+
+
+
 
 
 
