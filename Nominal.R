@@ -40,8 +40,8 @@ exp(Alpha)/sum(exp(Alpha)) ; rm(Alpha)
 Beta <- predict(multi_mod2, data.frame(AgeGroup = c("16-24", "25-34"),
                                        Employment = c("Doing something else",
                                                       "Doing something else"), 
-                          Sex = c("Female", "Female"), Fruit = c("No", "No")),
-                          type="probs") ; Beta
+                                       Sex = c("Female", "Female"), Fruit = c("No", "No")),
+                type="probs") ; Beta
 exp(log(Beta[1,1]*Beta[2,2]/(Beta[1,2]*Beta[2,1]))) ; rm(Beta)
 ## or we can just take the coefficient of AgeGroup "25-34" and take it's exp
 exp(0.8045142)
@@ -79,7 +79,7 @@ confusionMatrix(Predictions$True_Values, Predictions$Multi_Mod1)
 rf_mod1 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
                         data = Obesity_train, ntree = 300)
 rf_bg_mod1 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
-                        data = Obesity_train, mtry = 5, ntree = 300)
+                           data = Obesity_train, mtry = 5, ntree = 300)
 ## Bagging is not suitable for this data as the AgeGroup is a most influential variable
 rf_mod2 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit,
                         data = Obesity_train)
@@ -100,10 +100,10 @@ legend('topright', colnames(rf_mod1$err.rate), col=1:5, fill=1:5)
 
 # Random forest with dummy variables
 Obesity_train_dum <- recipe(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg, 
-                      data = Obesity_train) %>%
+                            data = Obesity_train) %>%
   step_dummy(all_nominal(), -all_outcomes()) %>% prep() %>% juice()
 Obesity_test_dum <- recipe(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg, 
-                      data = Obesity_test) %>%
+                           data = Obesity_test) %>%
   step_dummy(all_nominal(), -all_outcomes()) %>% prep() %>% juice()
 
 rf_mod1_dum <- randomForest(BMIgroup ~ . , data = Obesity_train_dum, ntree = 300)
@@ -135,24 +135,24 @@ Obesity_train_2 <- Obesity_train %>% subset(BMIgroup != "Underweight")
 Obesity_test_2 <- Obesity_test %>% subset(BMIgroup != "Underweight")
 
 Obesity_train_2$BMIgroup <- factor(x = Obesity_train_2$BMIgroup,
-                           levels = c("Normal", "Overweight",
-                                      "Obese"))
+                                   levels = c("Normal", "Overweight",
+                                              "Obese"))
 Obesity_test_2$BMIgroup <- factor(x = Obesity_test_2$BMIgroup,
-                           levels = c("Normal", "Overweight",
-                                      "Obese"))
+                                  levels = c("Normal", "Overweight",
+                                             "Obese"))
 
 
 multi_mod1.2 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
-                       data = Obesity_train_2)
+                         data = Obesity_train_2)
 
 
 summary(multi_mod1.2)
 mod <- step(multi_mod1.2); rm(mod)
 
 multi_mod2.2 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Veg,
-                       data = Obesity_train_2)
+                         data = Obesity_train_2)
 multi_mod3.2 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex,
-                       data = Obesity_train_2)
+                         data = Obesity_train_2)
 
 
 
@@ -167,18 +167,18 @@ confusionMatrix(Predictions$True_Values, Predictions$Multi_Mod2.2)
 
 # Random_forest without Underweight ----
 rf_mod1.2 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
-                        data = Obesity_train_2, ntree = 300)
+                          data = Obesity_train_2, ntree = 300)
 
 rf_mod1.2 %>% vip(geom = "col") # Imp plot
 importance(rf_mod1.2) # Importance of variables
 varUsed(rf_mod1.2)
 
 rf_mod2.2 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Veg,
-                        data = Obesity_train_2, ntree = 300)
+                          data = Obesity_train_2, ntree = 300)
 
 # After removing Fruit and Veg as they have very low importance
 rf_mod3.2 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex,
-                        data = Obesity_train_2, ntree = 300)
+                          data = Obesity_train_2, ntree = 300)
 plot(rf_mod1.2)
 legend('topright', colnames(rf_mod1.2$err.rate), col=1:4, fill=1:4)
 

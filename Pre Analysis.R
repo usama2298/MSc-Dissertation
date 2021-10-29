@@ -6,7 +6,6 @@ library(ggridges); library(gridExtra); library(broom) ; library(AICcmodavg)
 # Reading Data ----
 Obesity <- read_csv("Obesity.csv")
 
-
 # Converting Variables into factor
 Obesity$AgeGroup <- as.factor(Obesity$AgeGroup)
 Obesity$Sex <- as.factor(Obesity$Sex)
@@ -18,12 +17,22 @@ Obesity$Obese <- as.factor(if_else(Obesity$BMIgroup == "Obese", "Yes", "No"))
 
 table(Obesity$BMIgroup)
 
+# Renaming Employment levels with short forms
+## Else         = "Doing something else"                                  
+## FT Edu       = "In full-time education"                                
+## Employed     = "In paid employment, self-employed or on govt training"
+## Homemaking   = "Looking after home/family"                             
+## Job Seeking  = "Looking for/intending to look for paid work"           
+## Unemployable = "Perm unable to work"                                   
+## Retd         = "Retired" 
+levels(Obesity$Employment) <- c("Else", "FT Edu", "Employed", "Homemaking",
+                                "Job Seeking", "Unemployable", "Retd")
+
 # Ordering BMIgroup variable levels
 Obesity$BMIgroup <- factor(x = Obesity$BMIgroup,
                            levels = c("Underweight", "Normal", "Overweight",
                                       "Obese"))
 levels(Obesity$BMIgroup)
-
 
 # Spiting data into "Train" and "Test" set to avoid over fitting
 Split = sample(x = c(TRUE, FALSE), size = nrow(Obesity), replace = TRUE,
@@ -56,8 +65,8 @@ my_skim(Obesity); rm(my_skim)
 
 ggplot(Obesity, aes(x = BMI)) +
   geom_histogram(binwidth = 1.5, mapping = aes(y=..density..), colour="black", fill="white") +
-  geom_density(alpha=.15, fill="#FF6666") + 
-  geom_vline(aes(xintercept=27.9), color = "blue", linetype="dashed") +
+  geom_density(alpha=.15, fill="#138808") + 
+  geom_vline(aes(xintercept=mean(Obesity$BMI)), color = "red", linetype="dashed") +
   annotate(geom="text", x=28.35, y=0.04, label="mean = 27.9",
            color="black", angle='90', size = 4) + 
   labs(title = "BMI")
@@ -79,6 +88,7 @@ CrossTable(Obesity$BMIgroup, Obesity$Year,digits=2,
 CrossTable(Obesity$Obese, Obesity$Year,digits=2,
            prop.r=F, prop.t=F, prop.chisq=F)
 
+table(Obesity$Year)
 table(Obesity$BMIgroup)
 ggplot(Obesity, aes(x = Year, fill = BMIgroup)) + geom_bar(position = "dodge")
 ggplot(Obesity, aes(x = Year, fill = Obese)) + geom_bar() + facet_wrap(~ Obese)
@@ -98,8 +108,7 @@ ggplot(Obesity, aes(x = BMI, y = as.factor(Year), fill = BMIgroup)) +
 Prop_Emp <- group_by(Obesity, Employment, BMIgroup) %>% summarise(count=n()) %>% 
   group_by(Employment) %>% mutate(total=sum(count), proportion=count/total)
 ggplot(Prop_Emp, aes(x=Employment, y=proportion, group=BMIgroup,
-                     linetype=BMIgroup, color=BMIgroup)) + geom_line() +
-  theme_bw() + theme(axis.text.x = element_blank())
+                     linetype=BMIgroup, color=BMIgroup)) + geom_line() + theme_bw()
 
 Prop_Sex <- group_by(Obesity, Sex, BMIgroup) %>% summarise(count=n()) %>% 
   group_by(Sex) %>% mutate(total=sum(count), proportion=count/total)
@@ -129,7 +138,9 @@ group_by(Obesity, AgeGroup) %>% summarise(Count=n()) %>%
 Prop_Year <- group_by(Obesity, Year, BMIgroup) %>% summarise(count=n()) %>%
   group_by(Year) %>% mutate(total=sum(count), proportion=count/total)
 
-### Prop plot for Year and Obese ----
+Prop_Year$proportion[Prop_Year$BMIgroup=="Overweight"]
+
+### Prop plot for Year and Obese
 Prop_Year %>% subset(BMIgroup == "Obese") %>%
   ggplot(mapping = aes(x=Year, y=proportion, group=BMIgroup, color=BMIgroup)) +
   geom_line(size = 0.5) + labs(title = "Proportion Plot: Obese vs Year")
@@ -158,17 +169,10 @@ rm(Prop_Sex, Prop_AgeGroup, Prop_Emp, Prop_Fruit, Prop_Veg, p1, p2, p3, p4)
 
 Prop_Year <- Prop_Year %>% subset(BMIgroup == "Obese")
 
+
 prop.test(Prop_Year$count, Prop_Year$total)
 
 chisq.test(Obesity$Obese, Obesity$Year)
-
-
-
-
-
-
-
-
 
 
 
