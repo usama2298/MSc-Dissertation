@@ -1,6 +1,7 @@
 # Libraries ----
 library(olsrr) ; library(faraway) ; library(ggfortify)
 library(dummies)
+library(caTools); library(plotly); library(lattice); 
 
 # Linear Model ----
 
@@ -57,8 +58,8 @@ anova(null_mod, lm_mod1.2)
 
 Obesity_train %>% group_by(AgeGroup) %>% summarise(var = var(BMI))
 
-# rm(lm_mod1, lm_mod1.1, lm_mod1.2, lm_mod1.3)
-autoplot(lm_mod1.2)
+# rm(null_mod, lm_mod1, lm_mod1.1, lm_mod1.2, lm_mod1.3)
+autoplot(lm_mod1.2, which = 1:6)
 
 plot(residuals(lm_mod1.2) ~ AgeGroup, Obesity_train, ylab="Residuals")
 
@@ -71,6 +72,35 @@ TukeyHSD(aov(log(BMI) ~ AgeGroup + Employment + Sex, data = Obesity_train))
 
 
 step(lm_mod1.1)
+
+quantile(Obesity$BMI, 0.9)
+Obesity_High_BMI <- subset(Obesity, BMI > quantile(Obesity$BMI, 0.9))
+
+summary(Obesity$BMI)
+
+# dummy variables
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

@@ -61,15 +61,27 @@ Obesity_test <- read_rds("Obesity_test.RData")
 # Summary ----
 my_skim <- skim_with(base=sfl(n=length,n_missing=n_missing),factor=sfl(ordered=NULL),
                      numeric=sfl(hist = NULL))
-my_skim(Obesity); rm(my_skim)
+my_skim(Obesity$BMI); rm(my_skim)
+
+Obesity %>% group_by(Fruit) %>% my_skim(BMI) %>% 
+  dplyr::select(Fruit, Mean = numeric.mean, SD = numeric.sd, P25 = numeric.p25,
+                P50 = numeric.p50, P75 = numeric.p75) %>%
+  write.csv("C:/Users/chusa/Desktop/file.csv")
+
+
 
 ggplot(Obesity, aes(x = BMI)) +
   geom_histogram(binwidth = 1.5, mapping = aes(y=..density..), colour="black", fill="white") +
-  geom_density(alpha=.15, fill="#138808") + 
+  geom_density(alpha=.15, fill="#657f14") + 
   geom_vline(aes(xintercept=mean(Obesity$BMI)), color = "red", linetype="dashed") +
   annotate(geom="text", x=28.35, y=0.04, label="mean = 27.9",
-           color="black", angle='90', size = 4) + 
-  labs(title = "BMI")
+           color="black", angle='90', size = 4) +
+  theme(panel.background = element_rect(fill = "transparent"), # bg of the panel
+    plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
+    panel.grid.major = element_blank(), # get rid of major grid
+    panel.grid.minor = element_blank(), # get rid of minor grid
+    legend.background = element_rect(fill = "transparent"), # get rid of legend bg
+    legend.box.background = element_rect(fill = "transparent")) # get rid of legend panel bg
 
 
 ## Cross Tables ----
@@ -88,8 +100,7 @@ CrossTable(Obesity$BMIgroup, Obesity$Year,digits=2,
 CrossTable(Obesity$Obese, Obesity$Year,digits=2,
            prop.r=F, prop.t=F, prop.chisq=F)
 
-table(Obesity$Year)
-table(Obesity$BMIgroup)
+
 ggplot(Obesity, aes(x = Year, fill = BMIgroup)) + geom_bar(position = "dodge")
 ggplot(Obesity, aes(x = Year, fill = Obese)) + geom_bar() + facet_wrap(~ Obese)
 
@@ -103,12 +114,14 @@ ggplot(Obesity, aes(x = BMI, y = as.factor(Year), fill = BMIgroup)) +
   geom_density_ridges(alpha = 0.5) +
   theme_ridges()
 
-
+levels(Obesity$Employment)
 # Proportion graphs ----
 Prop_Emp <- group_by(Obesity, Employment, BMIgroup) %>% summarise(count=n()) %>% 
   group_by(Employment) %>% mutate(total=sum(count), proportion=count/total)
 ggplot(Prop_Emp, aes(x=Employment, y=proportion, group=BMIgroup,
                      linetype=BMIgroup, color=BMIgroup)) + geom_line() + theme_bw()
+Prop_Emp <- Prop_Emp %>% subset(BMIgroup == "Obese")
+prop.test(Prop_Emp$count, Prop_Emp$total)
 
 Prop_Sex <- group_by(Obesity, Sex, BMIgroup) %>% summarise(count=n()) %>% 
   group_by(Sex) %>% mutate(total=sum(count), proportion=count/total)
@@ -138,7 +151,6 @@ group_by(Obesity, AgeGroup) %>% summarise(Count=n()) %>%
 Prop_Year <- group_by(Obesity, Year, BMIgroup) %>% summarise(count=n()) %>%
   group_by(Year) %>% mutate(total=sum(count), proportion=count/total)
 
-Prop_Year$proportion[Prop_Year$BMIgroup=="Overweight"]
 
 ### Prop plot for Year and Obese
 Prop_Year %>% subset(BMIgroup == "Obese") %>%
@@ -160,19 +172,24 @@ ggplot(mapping = aes(x=Year, y=proportion, group=BMIgroup, color=BMIgroup)) +
 
 grid.arrange(p1, p2, p3, p4)
 
+# Extracting data for Excel
+Prop_Fruit %>% dplyr::select(-c(3,4)) %>%
+  pivot_wider(names_from = BMIgroup, values_from = proportion) %>%
+  write.csv("C:/Users/chusa/Desktop/file.csv")
 
 # Removing prop data frames as there is no further use
 rm(Prop_Sex, Prop_AgeGroup, Prop_Emp, Prop_Fruit, Prop_Veg, p1, p2, p3, p4)
 
-
 # Proportion Comparison ----
 
 Prop_Year <- Prop_Year %>% subset(BMIgroup == "Obese")
-
-
-prop.test(Prop_Year$count, Prop_Year$total)
-
+prop.test(Prop_Year$count, Prop_Year$total) ; rm(Prop_Year)
 chisq.test(Obesity$Obese, Obesity$Year)
+
+
+
+
+
 
 
 
