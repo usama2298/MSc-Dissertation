@@ -1,7 +1,9 @@
 # Libraries ----
-library(tidyverse); library(faraway); library(GGally); library(skimr)
-library(ggthemes); library(sjPlot); library(class); library(gmodels)
-library(ggridges); library(gridExtra); library(broom) ; library(AICcmodavg)
+library(easypackages)
+libraries("olsrr", "faraway", "ggfortify", "caTools", "plotly", "lattice", "Metrics",
+          "jtools", "moderndive", "MASS", "broom", "infer", "janitor", "recipes",
+          "tidyverse", "GGally", "skimr", "ggthemes", "sjPlot", "class", "gmodels",
+          "gridExtra", "AICcmodavg", "recipes", "randomForest", "caret", "vip")
 
 # Reading Data ----
 Obesity <- read_csv("Obesity.csv")
@@ -84,6 +86,8 @@ ggplot(Obesity, aes(x = BMI)) +
     legend.box.background = element_rect(fill = "transparent")) # get rid of legend panel bg
 
 
+
+
 ## Cross Tables ----
 CrossTable(Obesity$BMIgroup, Obesity$AgeGroup,digits=2,
            prop.r=F, prop.t=F, prop.chisq=F)
@@ -102,10 +106,10 @@ CrossTable(Obesity$Obese, Obesity$Year,digits=2,
 
 
 ggplot(Obesity, aes(x = Year, fill = BMIgroup)) + geom_bar(position = "dodge")
-ggplot(Obesity, aes(x = Year, fill = Obese)) + geom_bar() + facet_wrap(~ Obese)
+ggplot(Obesity, aes(x = Year, fill = Obese)) + geom_bar()# + facet_wrap(~ Obese)
 
 aggregate(Obesity$BMI, by=list(Obesity$BMIgroup), FUN=var)
-aggregate(Obesity$BMI, by=list(Obesity$Year), FUN=var)
+aggregate(Obesity$BMI, by=list(Obesity$Year), FUN=mean)
 aggregate(Obesity$BMI, by=list(Obesity$BMIgroup), FUN=var)
 
 ggpairs(Obesity, columns=2, ggplot2::aes(colour=BMIgroup), legend = T)
@@ -181,19 +185,9 @@ Prop_Fruit %>% dplyr::select(-c(3,4)) %>%
 rm(Prop_Sex, Prop_AgeGroup, Prop_Emp, Prop_Fruit, Prop_Veg, p1, p2, p3, p4)
 
 # Proportion Comparison ----
-
 Prop_Year <- Prop_Year %>% subset(BMIgroup == "Obese")
 prop.test(Prop_Year$count, Prop_Year$total) ; rm(Prop_Year)
-chisq.test(Obesity$Obese, Obesity$Year)
-
-
-
-
-
-
-
-
-
+stats::chisq.test(Obesity$Obese, Obesity$Year)
 
 
 

@@ -7,7 +7,6 @@ library(parsnip); library(tune); library(workflows)
 library(doParallel); library(ranger) ; library(themis)
 
 
-
 # Multinomial Model ----
 multi_mod1 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
                        data = Obesity_train) ; summary(multi_mod1)
@@ -154,7 +153,8 @@ multi_mod2.2 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Veg,
                          data = Obesity_train_2)
 multi_mod3.2 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex,
                          data = Obesity_train_2)
-
+library(pROC)
+multiclass.roc(Obesity_train_2$BMIgroup, multi_mod3.2$fitted.values)
 
 # Predictions by Different Models
 Predictions <- tibble(True_Values = Obesity_test_2$BMIgroup,
@@ -165,7 +165,7 @@ Predictions <- tibble(True_Values = Obesity_test_2$BMIgroup,
 
 # Random_forest without Underweight ----
 rf_mod1.2 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
-                          data = Obesity_train_2, ntree = 300, mtry = 5)
+                          data = Obesity_train_2, ntree = 300)
 
 rf_mod1.2 %>% vip(geom = "col") # Imp plot
 randomForest::importance(rf_mod1.2) # Importance of variables
@@ -183,12 +183,12 @@ legend('topright', colnames(rf_mod1.2$err.rate), col=1:4, fill=1:4)
 
 Predictions <- tibble(True_Values = Obesity_test_2$BMIgroup,
                       Rf_Multi_Mod1.2 = predict(rf_mod1.2, Obesity_test_2),
-                      Rf_Multi_Mod2.2 = predict(rf_mod2.2, Obesity_test_2),
-                      Rf_Multi_Mod3.2 = predict(rf_mod3.2, Obesity_test_2),)
+                      Multi_Mod3.2 = predict(multi_mod3.2, Obesity_test_2))
 
-confusionMatrix(Predictions$True_Values, Predictions$Rf_Multi_Mod3.2)
+confusionMatrix(Predictions$True_Values, Predictions$Rf_Multi_Mod1.2)
+confusionMatrix(Predictions$True_Values, Predictions$Multi_Mod3.2)
 # Correct Classification rate
-CP <- table(Predictions$True_Values, Predictions$Rf_Multi_Mod3.2) ; CP
+CP <- table(Predictions$True_Values, Predictions$Rf_Multi_Mod1.2) ; CP
 # Proportion Table
 prop.table(CP, margin=1)
 confusionMatrix(Predictions$True_Values, Predictions$Multi_Mod2.2)
@@ -267,11 +267,6 @@ coeff_dt_1 %>%
   theme(axis.text.x=element_text(size=12,angle = 0),axis.text.y = element_blank(),panel.background = element_blank(),axis.ticks.y = element_blank(),
         legend.title = element_blank())+
   labs(x=element_blank(),y='Increase in Log Odds', )
-
-
-
-
-
 
 
 
