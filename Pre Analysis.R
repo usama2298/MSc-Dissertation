@@ -12,7 +12,6 @@ Obesity <- read_csv("Obesity.csv")
 Obesity$AgeGroup <- as.factor(Obesity$AgeGroup)
 Obesity$Sex <- as.factor(Obesity$Sex)
 Obesity$Employment <- as.factor(Obesity$Employment)
-Obesity$Employment <- relevel(Obesity$Employment, ref = "FT Edu")
 Obesity$Veg <- as.factor(Obesity$Veg)
 Obesity$Fruit <- as.factor(Obesity$Fruit)
 Obesity$BMIgroup <- as.factor(Obesity$BMIgroup)
@@ -31,6 +30,7 @@ table(Obesity$BMIgroup)
 ## Retd         = "Retired" 
 levels(Obesity$Employment) <- c("Else", "FT Edu", "Employed", "Homemaking",
                                 "Job Seeking", "Unemployable", "Retd")
+Obesity$Employment <- relevel(Obesity$Employment, ref = "FT Edu")
 
 # Ordering BMIgroup variable levels
 Obesity$BMIgroup <- factor(x = Obesity$BMIgroup,
