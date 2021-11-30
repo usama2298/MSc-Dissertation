@@ -12,9 +12,11 @@ Obesity <- read_csv("Obesity.csv")
 Obesity$AgeGroup <- as.factor(Obesity$AgeGroup)
 Obesity$Sex <- as.factor(Obesity$Sex)
 Obesity$Employment <- as.factor(Obesity$Employment)
+Obesity$Employment <- relevel(Obesity$Employment, ref = "FT Edu")
 Obesity$Veg <- as.factor(Obesity$Veg)
 Obesity$Fruit <- as.factor(Obesity$Fruit)
 Obesity$BMIgroup <- as.factor(Obesity$BMIgroup)
+Obesity$Year <- as.factor(Obesity$Year)
 Obesity$Obese <- as.factor(if_else(Obesity$BMIgroup == "Obese", "Yes", "No"))
 
 table(Obesity$BMIgroup)
@@ -61,9 +63,9 @@ Obesity_train <- read_rds("Obesity_train.RData")
 Obesity_test <- read_rds("Obesity_test.RData")
 
 # Summary ----
-my_skim <- skim_with(base=sfl(n=length,n_missing=n_missing),factor=sfl(ordered=NULL),
-                     numeric=sfl(hist = NULL))
-my_skim(Obesity$BMI); rm(my_skim)
+my_skim <- skim_with(base=sfl(n=length), factor=sfl(ordered=NULL),
+                     numeric=sfl(hist = NULL, p0 = NULL, p100 = NULL))
+my_skim(Obesity); rm(my_skim)
 
 Obesity %>% group_by(Fruit) %>% my_skim(BMI) %>% 
   dplyr::select(Fruit, Mean = numeric.mean, SD = numeric.sd, P25 = numeric.p25,
@@ -74,35 +76,38 @@ Obesity %>% group_by(Fruit) %>% my_skim(BMI) %>%
 
 ggplot(Obesity, aes(x = BMI)) +
   geom_histogram(binwidth = 1.5, mapping = aes(y=..density..), colour="black", fill="white") +
-  geom_density(alpha=.15, fill="#657f14") + 
-  geom_vline(aes(xintercept=mean(Obesity$BMI)), color = "red", linetype="dashed") +
+  geom_density(alpha=.15, fill="grey") + 
+  geom_vline(aes(xintercept=mean(Obesity$BMI)), color = "#3F6EC3", linetype="dashed") + 
+  ylab("Density") +
   annotate(geom="text", x=28.35, y=0.04, label="mean = 27.9",
            color="black", angle='90', size = 4) +
+  geom_vline(aes(xintercept=quantile(Obesity$BMI, 0.75)), color = "#657F14", linetype="dashed") + 
+  ylab("Density") +
+  geom_vline(aes(xintercept=quantile(Obesity$BMI, 0.25)), color = "#EC792B", linetype="dashed") + 
+  ylab("Density") +
   theme(panel.background = element_rect(fill = "transparent"), # bg of the panel
     plot.background = element_rect(fill = "transparent", color = NA), # bg of the plot
     panel.grid.major = element_blank(), # get rid of major grid
     panel.grid.minor = element_blank(), # get rid of minor grid
     legend.background = element_rect(fill = "transparent"), # get rid of legend bg
     legend.box.background = element_rect(fill = "transparent")) # get rid of legend panel bg
-
-
-
-
+                
+ggpairs(Obesity[,-c(6:7, 9)], lower = NULL, diag = NULL)
+table(Obesity$Obese)
 ## Cross Tables ----
-CrossTable(Obesity$BMIgroup, Obesity$AgeGroup,digits=2,
-           prop.r=F, prop.t=F, prop.chisq=F)
-CrossTable(Obesity$BMIgroup, Obesity$Sex,digits=2,
-           prop.r=F, prop.t=F, prop.chisq=F)
+CrossTable(Obesity$AgeGroup, Obesity$BMIgroup,digits=2,
+           prop.c=F, prop.t=F, prop.chisq=F)
 CrossTable(Obesity$Employment, Obesity$BMIgroup,digits=2,
-           prop.r=F, prop.t=F, prop.chisq=F)
-CrossTable(Obesity$BMIgroup, Obesity$Veg,digits=2,
-           prop.r=F, prop.t=F, prop.chisq=F)
-CrossTable(Obesity$BMIgroup, Obesity$Fruit,digits=2,
-           prop.r=F, prop.t=F, prop.chisq=F)
-CrossTable(Obesity$BMIgroup, Obesity$Year,digits=2,
-           prop.r=F, prop.t=F, prop.chisq=F)
-CrossTable(Obesity$Obese, Obesity$Year,digits=2,
-           prop.r=F, prop.t=F, prop.chisq=F)
+           prop.c=F, prop.t=F, prop.chisq=F)
+CrossTable(Obesity$Sex, Obesity$BMIgroup,digits=2,
+           prop.c=F, prop.t=F, prop.chisq=F)
+CrossTable(Obesity$Fruit, Obesity$BMIgroup,digits=2,
+           prop.c=F, prop.t=F, prop.chisq=F)
+CrossTable(Obesity$Veg, Obesity$BMIgroup,digits=2,
+           prop.c=F, prop.t=F, prop.chisq=F)
+CrossTable(Obesity$AgeGroup, Obesity$Obese,digits=2,
+           prop.c=F, prop.t=F, prop.chisq=F)
+
 
 
 ggplot(Obesity, aes(x = Year, fill = BMIgroup)) + geom_bar(position = "dodge")
@@ -188,6 +193,8 @@ rm(Prop_Sex, Prop_AgeGroup, Prop_Emp, Prop_Fruit, Prop_Veg, p1, p2, p3, p4)
 Prop_Year <- Prop_Year %>% subset(BMIgroup == "Obese")
 prop.test(Prop_Year$count, Prop_Year$total) ; rm(Prop_Year)
 stats::chisq.test(Obesity$Obese, Obesity$Year)
+
+
 
 
 

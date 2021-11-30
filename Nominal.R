@@ -5,25 +5,38 @@ library(forcats); library(vip)
 library(recipes); library(tidymodels); library(rsample)
 library(parsnip); library(tune); library(workflows)
 library(doParallel); library(ranger) ; library(themis)
-
+library(gtsummary)
 
 # Multinomial Model ----
-multi_mod1 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
-                       data = Obesity_train) ; summary(multi_mod1)
-## Model Selection
+multi_full_mod <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg + Year,
+                       data = Obesity_train)
+summary(multi_mod1)
+## Model Selection ----
 null_mod <- multinom(BMIgroup ~ 1, data=Obesity_train) ;  summary(null_mod)
 setequal((null_mod$deviance - multi_mod1$deviance),
          (qchisq(p = 0.95,df = (multi_mod1$edf-null_mod$edf))))
 ## This shows that the null model is insignificant
-mod <- stepAIC(multi_mod2) ; rm(mod)
-multi_mod2 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit,
-                       data = Obesity_train) ; summary(multi_mod2)
-multi_mod3 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex,
-                       data = Obesity_train) ; summary(multi_mod3) # Best Model
-multi_mod4 <- multinom(BMIgroup ~ AgeGroup + Sex, data = Obesity_train)
-multi_mod5 <- multinom(BMIgroup ~ AgeGroup, data = Obesity_train)
 
-anova(null_mod, multi_mod1)
+stats::step(multi_full_mod)
+## AIC removes Year
+multi_selected <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
+                       data = Obesity_train)
+
+multi_mod2 <- multinom(BMIgroup ~ AgeGroup, data = Obesity_train)
+multi_mod3 <- multinom(BMIgroup ~ AgeGroup + Sex, data = Obesity_train)
+multi_mod4 <- multinom(BMIgroup ~ AgeGroup + Sex + Employment,
+                       data = Obesity_train)
+multi_mod5 <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit,
+                       data = Obesity_train)
+
+anova(multi_full_mod, multi_mod2, multi_mod3, multi_mod4, multi_mod5,
+      multi_selected, null_mod)
+
+coeff_dt <- data.frame(summary(multi_mod1)$coeff) %>% rownames_to_column("Classes")
+coeff_dt <- coeff_dt %>% gather(variable,increase_in_log_odds,2:ncol(coeff_dt))
+coeff_dt <- coeff_dt %>% arrange(desc(Classes))
+write_csv(coeff_dt, "C:/Users/chusa/Desktop/file.csv")
+
 # Checking the prediction values based solely on intercept, which will give
 ## prediction values of base categories:
 predict(multi_mod2, data.frame(AgeGroup = "16-24",
@@ -56,23 +69,35 @@ exp(confint(multi_mod2))
 plot_model(multi_mod2, show.values = TRUE, title = "Odds", show.p = F)
 
 
+
 # Predictions by Different Models
 Predictions <- tibble(True_Values = Obesity_test$BMIgroup,
-                      Multi_Mod1 = predict(multi_mod1, Obesity_test),
-                      Multi_Mod2 = predict(multi_mod2, Obesity_test),
-                      Multi_Mod3 = predict(multi_mod3, Obesity_test),
-                      Multi_Mod4 = predict(multi_mod4, Obesity_test),
-                      Multi_Mod5 = predict(multi_mod5, Obesity_test))
+                      Predicted = predict(multi_selected, Obesity_test))
 
 # Correct Classification rate
-CP <- table(Predictions$True_Values, Predictions$Multi_Mod3) ; CP
+CP <- table(Predictions$True_Values, Predictions$Predicted) ; CP
 # Proportion Table
 prop.table(CP, margin=1)
 (CP[1,1]+CP[2,2]+CP[3,3]+CP[4,4])/nrow(Obesity_test) ; rm(CP)
 # Error rate
-1- mean(Predictions$True_Values == Predictions$Multi_Mod1)
+1- mean(Predictions$True_Values == Predictions$Predicted)
 # Confusion Matrix
-confusionMatrix(Predictions$True_Values, Predictions$Multi_Mod3)
+confusionMatrix(Predictions$True_Values, Predictions$Predicted)
+
+## SMOTE Sampling ----
+
+downSample(x, y, list = FALSE, yname = "Class")
+Obesity_train_samp <- downSample(Obesity_train[, -c(6:9)], 
+                               Obesity_train$BMIgroup, list = F, yname = "BMIgroup")
+table(Obesity_train_samp$BMIgroup)
+
+
+multi_selected <- multinom(BMIgroup ~ . ,data = Obesity_train_samp)
+
+confusionMatrix(Obesity_test$BMIgroup, predict(multi_selected, Obesity_test))
+
+
+
 
 # Random_forest Model ----
 rf_mod1 <- randomForest(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
@@ -242,19 +267,20 @@ classes <- c("Overweight", "Obese")
 coeff_dt_1 <- coeff_dt %>% mutate(classes = classes) %>%
   gather(variable,increase_in_log_odds,2:ncol(coeff_dt))
 
-coeff_dt_1$variable[coeff_dt_1$variable == "AgeGroup25.34"] <- "24-35"
-coeff_dt_1$variable[coeff_dt_1$variable == "AgeGroup35.44"] <- "34-45"
-coeff_dt_1$variable[coeff_dt_1$variable == "AgeGroup45.54"] <- "44-55"
-coeff_dt_1$variable[coeff_dt_1$variable == "AgeGroup55.64"] <- "54-65"
-coeff_dt_1$variable[coeff_dt_1$variable == "AgeGroup65.74"] <- "64-75"
-coeff_dt_1$variable[coeff_dt_1$variable == "AgeGroup75."] <- "75+"
-coeff_dt_1$variable[coeff_dt_1$variable == "EmploymentFT.Edu"] <- "FT Edu"
-coeff_dt_1$variable[coeff_dt_1$variable == "EmploymentEmployed"] <- "Employed"
-coeff_dt_1$variable[coeff_dt_1$variable == "EmploymentHomemaking"] <- "Homemaking"
-coeff_dt_1$variable[coeff_dt_1$variable == "EmploymentJob.Seeking"] <- "Job Seeking"
-coeff_dt_1$variable[coeff_dt_1$variable == "EmploymentUnemployable"] <- "Unemployable"
-coeff_dt_1$variable[coeff_dt_1$variable == "EmploymentRetd"] <- "Retd"
-coeff_dt_1$variable[coeff_dt_1$variable == "SexMale"] <- "Male"
+coeff_dt$variable[coeff_dt$variable == "X.Intercept."] <- "intercept"
+coeff_dt$variable[coeff_dt$variable == "AgeGroup25.34"] <- "24-35"
+coeff_dt$variable[coeff_dt$variable == "AgeGroup35.44"] <- "34-45"
+coeff_dt$variable[coeff_dt$variable == "AgeGroup45.54"] <- "44-55"
+coeff_dt$variable[coeff_dt$variable == "AgeGroup55.64"] <- "54-65"
+coeff_dt$variable[coeff_dt$variable == "AgeGroup65.74"] <- "64-75"
+coeff_dt$variable[coeff_dt$variable == "AgeGroup75."] <- "75+"
+coeff_dt$variable[coeff_dt$variable == "EmploymentFT.Edu"] <- "FT Edu"
+coeff_dt$variable[coeff_dt$variable == "EmploymentEmployed"] <- "Employed"
+coeff_dt$variable[coeff_dt$variable == "EmploymentHomemaking"] <- "Homemaking"
+coeff_dt$variable[coeff_dt$variable == "EmploymentJob.Seeking"] <- "Job Seeking"
+coeff_dt$variable[coeff_dt$variable == "EmploymentUnemployable"] <- "Unemployable"
+coeff_dt$variable[coeff_dt$variable == "EmploymentRetd"] <- "Retd"
+coeff_dt$variable[coeff_dt$variable == "SexMale"] <- "Male"
 
 coeff_dt_1 <- coeff_dt_1 %>% mutate(increase_in_odds = exp(coeff_dt_1$increase_in_log_odds))
 
