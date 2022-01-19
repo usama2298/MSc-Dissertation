@@ -72,14 +72,19 @@ ols_step_best_subset(lm_mod1.1)
 ## According to the analysis of F test and analysis of variance and AIC, Veg and Fruit
 ## come out to be insignificant so we will proceed without these variables.
 
-# Selected Model
+TukeyHSD(aov(BMI ~ AgeGroup + Employment + Sex, data = Obesity))
+
+rmse(actual = Obesity_test$BMI, predicted = exp(predict(lm_mod1.2, Obesity_test)))
+mae(actual = Obesity_test$BMI, predicted = exp(predict(lm_mod1.2, Obesity_test)))
+mse(actual = Obesity_test$BMI, predicted = exp(predict(lm_mod1.2, Obesity_test)))
+
+## Selected Model ----
 lm_mod1.2 <- lm(log(BMI) ~ AgeGroup + Employment + Sex, data = Obesity_train)
 summary(lm_mod1.2)
 plot(lm_mod1.2$residuals ~ Obesity_train$Sex)
-
 get_regression_table(lm_mod1.2)
 
-# Residual Plots
+## Residual Plots ----
 ggplot(mapping = aes(x = lm_mod1.2$residuals)) +
   geom_histogram(bins = 20, mapping = aes(y=..density..), colour="black", fill="white") +
   geom_density(alpha=.15, fill="#657f14") +
@@ -91,7 +96,6 @@ ggplot(mapping = aes(x = lm_mod1.2$residuals)) +
         legend.background = element_rect(fill = "transparent"),
         legend.box.background = element_rect(fill = "transparent"))
 plot(lm_mod1.2)
-
 autoplot(lm_mod1.2, smooth.colour = "#ed7d31", colour = "#446ed8",
          which = 6, nrow = 1, alpha = 0.5) +
   #labs(title = NULL)+
@@ -102,48 +106,61 @@ autoplot(lm_mod1.2, smooth.colour = "#ed7d31", colour = "#446ed8",
         legend.background = element_rect(fill = "transparent"),
         legend.box.background = element_rect(fill = "transparent"))
 
+pred <- as_tibble(exp(predict(lm_mod1.2, Obesity_test,
+                              interval="prediction", level=0.95)))
+pred$upr[pred$upr >= 30]
+which.max(pred$upr)
+pred[1777,]
 
+p1 <- ggplot(mapping = aes(y = pred$fit, x = Obesity_test$AgeGroup)) + geom_boxplot() +
+  xlab("AgeGroup") + ylab("Predicted")
+p2 <- ggplot(mapping = aes(y = Obesity_test$BMI, x = Obesity_test$AgeGroup)) + geom_boxplot() +
+  xlab("AgeGroup") + ylab("Actual")
+p3 <- ggplot(mapping = aes(y = pred$fit, x = Obesity_test$Employment)) + geom_boxplot() +
+  xlab("Employment") + ylab("Predicted")
+p4 <- ggplot(mapping = aes(y = Obesity_test$BMI, x = Obesity_test$Employment)) + geom_boxplot() +
+  xlab("Employment") + ylab("Actual")
+
+grid.arrange(p1, p2, p3, p4, top = "Predicted vs Explanatory ; Actual vs Explanatory")
 ## Because the data are integers and the fitted values happen to be integers also, some
 ## discreteness is obvious in the Q–Q plot. Of course, discrete data cannot be normally
 ## distributed. However, here the residuals are approximately normal and so we can go
 ## ahead with the inference without much concern.
 
-## Diagnostics ----
+library(lmtest)
+bptest(lm_mod1.2)
+library(expectreg)
 
-TukeyHSD(aov(BMI ~ AgeGroup + Employment + Sex, data = Obesity))
-
-rmse(actual = Obesity_test$BMI, predicted = exp(predict(lm_mod1.2, Obesity_test)))
-mae(actual = Obesity_test$BMI, predicted = exp(predict(lm_mod1.2, Obesity_test)))
-mse(actual = Obesity_test$BMI, predicted = exp(predict(lm_mod1.2, Obesity_test)))
-#MSE penalizes less heavily as compared to MAE, so MSE is a better option
+A <- expectreg.ls(log(BMI) ~ AgeGroup + Employment + Sex, data = Obesity_train, expectiles = 0.75)
+predict(A)
 
 ## Min_Max_Accuracy ----
-Prediction <- as_tibble(exp(predict(lm_mod1.2, Obesity_test, interval = "confidence"))) %>%
-  mutate(Observed = Obesity_test$BMI) %>% rename(Predicted = fit) %>% relocate(Observed)
+Prediction <- 
+  Obesity_test %>% mutate(Predicted = exp(predict(lm_mod1.2, Obesity_test))) %>%
+  rename(Actual = BMI) %>% dplyr::select(Actual, Predicted)
+Prediction %>% summary()
+Prediction %>% write.csv("C:/Users/chusa/Desktop/file4.csv")
+ggpairs(Prediction)
 
-my_skim <- skim_with(base=sfl(Var = var, Min = min, Mean = mean, Median = median, Max = max),
-                     numeric=sfl(hist = NULL, sd = NULL, p0 = NULL, p100 = NULL,
-                                 p50 = NULL, mean = NULL, skim_variable = NULL))
-Prediction %>% select(Observed, Predicted) %>% my_skim() %>% 
-  write.csv("C:/Users/chusa/Desktop/file4.csv")
+ggplot(mapping = aes(x = log(Obesity$BMI))) + geom_histogram(bins = 20)
+ggplot(mapping = aes(x = pred)) + geom_histogram(bins = 20)
 
-c(quantile(Prediction$Observed, 0.1), quantile(Prediction$Observed, 0.9))
-c(quantile(Prediction$Predicted, 0.1), quantile(Prediction$Predicted, 0.9))
 
-p1 <- ggplot(Prediction, aes(x = Observed)) +
+
+ p1 <- ggplot(Prediction, aes(x = Actual)) +
   geom_histogram(bins = 19, mapping = aes(y=..density..), colour="black", fill="white") +
   geom_density(alpha=.15, fill="#657f14") + 
-  geom_vline(aes(xintercept=quantile(Observed, 0.25)), color = "#ed7d31", linetype="dashed") +
-  annotate(geom="text", x=25, y=0.05, label="P25 = 23.99",
-           color="black", angle='90', size = 3.5) + 
-  geom_vline(aes(xintercept=mean(Observed)), color = "#ed7d31", linetype="dashed") +
-  annotate(geom="text", x=28.35, y=0.035, label="mean = 27.9",
-           color="black", angle='90', size = 3.5) + 
-  geom_vline(aes(xintercept=quantile(Observed, 0.75)), color = "#ed7d31", linetype="dashed") +
-  annotate(geom="text", x=31.36, y=0.02, label="P75 = 30.91",
-           color="black", angle='90', size = 3.5) +
-   annotate(geom="text", x=49, y=0.065, label="Min = 14.06", color="#ed7d31", size = 4) + 
-   annotate(geom="text", x=49, y=0.059, label="Max = 55.45", color="#ed7d31", size = 4) + 
+  # geom_vline(aes(xintercept=quantile(Actual, 0.25)), color = "#ed7d31", linetype="dashed") +
+  # annotate(geom="text", x=25, y=0.05, label="P25 = 23.99",
+  #          color="black", angle='90', size = 3.5) + 
+  # geom_vline(aes(xintercept=mean(Actual)), color = "#ed7d31", linetype="dashed") +
+  # annotate(geom="text", x=28.35, y=0.035, label="mean = 27.9",
+  #          color="black", angle='90', size = 3.5) + 
+  # geom_vline(aes(xintercept=quantile(Actual, 0.75)), color = "#ed7d31", linetype="dashed") +
+  # annotate(geom="text", x=31.36, y=0.02, label="P75 = 30.91",
+  #          color="black", angle='90', size = 3.5) +
+  #  annotate(geom="text", x=49, y=0.065, label="Min = 14.06", color="#ed7d31", size = 4) + 
+  #  annotate(geom="text", x=49, y=0.059, label="Max = 55.45", color="#ed7d31", size = 4) + 
   theme(panel.background = element_rect(fill = "transparent"),
         plot.background = element_rect(fill = "transparent", color = NA),
         panel.grid.major = element_blank(),
@@ -153,17 +170,17 @@ p1 <- ggplot(Prediction, aes(x = Observed)) +
 p2 <- ggplot(Prediction, mapping = aes(x = Predicted)) +
   geom_histogram(bins = 20, mapping = aes(y=..density..), colour="black", fill="white") +
   geom_density(alpha=.15, fill="#657f14") + 
-  geom_vline(aes(xintercept=quantile(Predicted, 0.25)), color = "#ed7d31", linetype="dashed") +
-  annotate(geom="text", x=26.5, y=0.15, label="P25 = 26.99",
-           color="black", angle='90', size = 3.5) + 
-  geom_vline(aes(xintercept=mean(Predicted)), color = "#ed7d31", linetype="dashed") +
-  annotate(geom="text", x=27.35, y=0.15, label="mean = 27.41",
-           color="black", angle='90', size = 3.5) + 
-  geom_vline(aes(xintercept=quantile(Predicted, 0.75)), color = "#ed7d31", linetype="dashed") +
-  annotate(geom="text", x=28.19, y=0.15, label="P75 = 28.13",
-           color="black", angle='90', size = 3.5) +
-   annotate(geom="text", x=25, y=0.6, label="Min = 23.84", color="#ed7d31", size = 4) + 
-   annotate(geom="text", x=25, y=0.55, label="Max = 29.49", color="#ed7d31", size = 4) + 
+  # geom_vline(aes(xintercept=quantile(Predicted, 0.25)), color = "#ed7d31", linetype="dashed") +
+  # annotate(geom="text", x=26.5, y=0.15, label="P25 = 26.99",
+  #          color="black", angle='90', size = 3.5) + 
+  # geom_vline(aes(xintercept=mean(Predicted)), color = "#ed7d31", linetype="dashed") +
+  # annotate(geom="text", x=27.35, y=0.15, label="mean = 27.41",
+  #          color="black", angle='90', size = 3.5) + 
+  # geom_vline(aes(xintercept=quantile(Predicted, 0.75)), color = "#ed7d31", linetype="dashed") +
+  # annotate(geom="text", x=28.19, y=0.15, label="P75 = 28.13",
+  #          color="black", angle='90', size = 3.5) +
+  #  annotate(geom="text", x=25, y=0.6, label="Min = 23.84", color="#ed7d31", size = 4) + 
+  #  annotate(geom="text", x=25, y=0.55, label="Max = 29.49", color="#ed7d31", size = 4) + 
   theme(panel.background = element_rect(fill = "transparent"),
         plot.background = element_rect(fill = "transparent", color = NA),
         panel.grid.major = element_blank(),
@@ -171,21 +188,19 @@ p2 <- ggplot(Prediction, mapping = aes(x = Predicted)) +
         legend.background = element_rect(fill = "transparent"),
         legend.box.background = element_rect(fill = "transparent"),
         axis.title.y = element_blank())
-p3 <- ggplot(Prediction, aes(y = Observed, x = Predicted)) +
-  geom_jitter(colour="#446ed8", alpha = 0.3) +
+p3 <- ggplot(Prediction, aes(y = Actual, x = Predicted)) +
+  geom_jitter(colour="#657f14", alpha = 0.1) +
   geom_smooth(method = "lm", se = FALSE, color = "#ed7d31") + 
-  annotate(geom="text", x=25.5, y=48, label="Corr = 0.18", color="#ed7d31", size = 5) +
-  labs(title = "Observed vs Predicted BMI") +
-  theme(plot.title = element_text(hjust = 0.5),
-        panel.background = element_rect(fill = "transparent"),
+  annotate(geom="text", x=25.5, y=53, label="Corr = 0.18", color="#ed7d31", size = 4) +
+  theme(panel.background = element_rect(fill = "transparent"),
         plot.background = element_rect(fill = "transparent", color = NA),
         panel.grid.major = element_blank(),
         panel.grid.minor = element_blank(),
         legend.background = element_rect(fill = "transparent"),
         legend.box.background = element_rect(fill = "transparent"))
-p3
-grid.arrange(p1, p2, p3, nrow = 1, top = "Distribution of Observed and Predicted Values")
-cor(Prediction$Observed, Prediction$Predicted)
+grid.arrange(p1, p2, p3, nrow = 1, top = "Distribution of Actual and Predicted Values")# ; rm(p1, p2)
+rm(p1, p2, p3)
+cor(Prediction$Actual, Prediction$Predicted)
 
 coeff_dt <- data.frame(summary(lm_mod1.2)$coeff) %>% 
   rownames_to_column(var = "Variable") %>% select(Variable, Estimate) %>%
@@ -197,6 +212,7 @@ coeff_dt$Variable[coeff_dt$Variable == "AgeGroup55-64"] <- "55-64"
 coeff_dt$Variable[coeff_dt$Variable == "AgeGroup65-74"] <- "65-74"
 coeff_dt$Variable[coeff_dt$Variable == "AgeGroup75+"] <- "75+"
 coeff_dt$Variable[coeff_dt$Variable == "EmploymentFT Edu"] <- "FT Edu"
+coeff_dt$Variable[coeff_dt$Variable == "EmploymentEmployed"] <- "Employed"
 coeff_dt$Variable[coeff_dt$Variable == "EmploymentHomemaking"] <- "Homemaking"
 coeff_dt$Variable[coeff_dt$Variable == "EmploymentJob Seeking"] <- "Job Seeking"
 coeff_dt$Variable[coeff_dt$Variable == "EmploymentUnemployable"] <- "Unemployable"

@@ -21,6 +21,7 @@ stats::step(multi_full_mod)
 ## AIC removes Year
 multi_selected <- multinom(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg,
                        data = Obesity_train)
+anova(multi_full_mod, multi_selected)
 
 multi_mod2 <- multinom(BMIgroup ~ AgeGroup, data = Obesity_train)
 multi_mod3 <- multinom(BMIgroup ~ AgeGroup + Sex, data = Obesity_train)
@@ -85,17 +86,23 @@ prop.table(CP, margin=1)
 confusionMatrix(Predictions$True_Values, Predictions$Predicted)
 
 ## SMOTE Sampling ----
-
-downSample(x, y, list = FALSE, yname = "Class")
-Obesity_train_samp <- downSample(Obesity_train[, -c(6:9)], 
-                               Obesity_train$BMIgroup, list = F, yname = "BMIgroup")
-table(Obesity_train_samp$BMIgroup)
-
+Obesity_train_samp <- 
+  recipe(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg, data = Obesity_train) %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>% 
+  step_smote(BMIgroup, over_ratio = 0.5, neighbors = 2) %>%
+  prep() %>% juice()
+Obesity_test_dm <- 
+  recipe(BMIgroup ~ AgeGroup + Employment + Sex + Fruit + Veg, data = Obesity_test) %>% 
+  step_dummy(all_nominal(), -all_outcomes()) %>% prep() %>% juice()
 
 multi_selected <- multinom(BMIgroup ~ . ,data = Obesity_train_samp)
 
-confusionMatrix(Obesity_test$BMIgroup, predict(multi_selected, Obesity_test))
+confusionMatrix(Obesity_test$BMIgroup, predict(multi_selected, Obesity_test_dm))
 
+coeff_dt <- data.frame(summary(multi_selected)$coeff) %>% rownames_to_column("Classes")
+coeff_dt <- coeff_dt %>% gather(variable,increase_in_log_odds,2:ncol(coeff_dt))
+coeff_dt <- coeff_dt %>% arrange(desc(Classes))
+write_csv(coeff_dt, "C:/Users/chusa/Desktop/file.csv")
 
 
 
